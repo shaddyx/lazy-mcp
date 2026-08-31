@@ -1,0 +1,52 @@
+{
+  "timeout": "60s",
+  "tools": {
+    "coding_tools": {
+      "description": "Development tools for coding, debugging, and analyzing code.",
+      "mcpServers": {
+        "serena": {
+          "command": "docker",
+          "args": [
+            "run",
+            "-i",
+            "--rm",
+            "-p",
+            "5000:5000",
+            "ghcr.io/serena/serena-mcp-server"
+          ]
+        }
+      }
+    },
+    "web_tools": {
+      "description": "Web tools for browsing and interacting with web content.",
+      "browsers": {
+        "description": "Web browsers for interacting with web content.",
+        "mcpServers": {
+          "chrome": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "chrome-devtools-mcp@latest"
+            ]
+          }
+        }
+      },
+      "mcpServers": {
+        "github": {
+          "command": "docker",
+          "args": [
+            "run",
+            "-i",
+            "--rm",
+            "-e",
+            "GITHUB_PERSONAL_ACCESS_TOKEN",
+            "ghcr.io/github/github-mcp-server"
+          ],
+          "env": {
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
+          }
+        }
+      }
+    }
+  }
+}
