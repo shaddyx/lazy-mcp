@@ -144,6 +144,28 @@ func TestServerDef_Validate(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_TildeExpansion(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, "cfg")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	path := filepath.Join(dir, "lazy_mcp_server_config.json")
+	if err := os.WriteFile(path, []byte(`{"a": {"mcpServers": {"s1": {"command": "echo"}}}}`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	t.Setenv("LAZY_MCP_SERVER_CONFIG", "~/cfg/lazy_mcp_server_config.json")
+	root, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig with ~ path: %v", err)
+	}
+	if root.Children["a"] == nil {
+		t.Fatal("expected category a to be loaded from ~ path")
+	}
+}
+
 func TestLoadConfig_ValidationErrors(t *testing.T) {
 	const cfg = `{
 		"bad": {

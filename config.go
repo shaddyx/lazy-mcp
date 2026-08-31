@@ -165,6 +165,23 @@ func parseTimeout(s string) (time.Duration, error) {
 	return time.ParseDuration(s)
 }
 
+// expandHome expands a leading "~" in path to the current user's home
+// directory. Paths that do not start with "~" are returned unchanged.
+func expandHome(path string) string {
+	if path == "~" {
+		if home, err := os.UserHomeDir(); err == nil {
+			return home
+		}
+		return path
+	}
+	if len(path) > 1 && path[0] == '~' && (path[1] == '/' || path[1] == os.PathSeparator) {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
+}
+
 // LoadConfig reads the configuration from the path given by the
 // LAZY_MCP_SERVER_CONFIG environment variable, or, if unset, from
 // "lazy_mcp_server_config.json" in the current working directory.
@@ -173,6 +190,7 @@ func LoadConfig() (*Category, error) {
 	if path == "" {
 		path = "lazy_mcp_server_config.json"
 	}
+	path = expandHome(path)
 	if !filepath.IsAbs(path) {
 		// Prefer a path relative to the executable directory if the file is
 		// not present in the cwd, so `go run` and built binaries both work.
