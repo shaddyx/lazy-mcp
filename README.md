@@ -165,6 +165,41 @@ The server runs over stdio, so it is typically registered as an MCP server in a
 client (e.g. Claude, an editor, or another MCP host) pointing at the `lazy-mcp`
 binary.
 
+## Installing with gorun
+
+The server can be installed and run directly from source without a local build
+using [gorun](https://github.com/shaddyx/gorun), a tool that runs Go programs
+by URL. Install `gorun` first:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shaddyx/gorun/master/install.sh | bash
+```
+
+`gorun` fetches, builds, and runs the `main` package at the given URL, so you
+can invoke `lazy-mcp` directly from its repository:
+
+```sh
+gorun https://github.com/shaddyx/lazy-mcp
+```
+
+### Registering in opencode
+
+In an opencode configuration file, add the following MCP server entry. The
+`LAZY_MCP_SERVER_CONFIG` environment variable points at your
+[server config](#configuration) file:
+
+```jsonc
+"lazy-mcp": {
+  "command": [
+    "gorun", "https://github.com/shaddyx/lazy-mcp"
+  ],
+  "type": "local",
+  "environment": {
+    "LAZY_MCP_SERVER_CONFIG": "~/.config/opencode/lazy_mcp_server_config.json"
+  }
+}
+```
+
 ## Project layout
 
 - `main.go` — entry point: config + logging setup, server bootstrap.
