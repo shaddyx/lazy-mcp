@@ -1,4 +1,4 @@
-module github.com/shaddy/vibe/mcp/lazy-mcp
+module github.com/shaddyx/lazy-mcp
 
 go 1.26
 
