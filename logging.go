@@ -39,12 +39,15 @@ func DefaultLogConfig() LogConfig {
 // LoadLogConfig reads the logging configuration from the environment:
 //
 //	LAZY_MCP_LOG_DIR          log directory (default: <lazy-mcp>/logs)
+//	LAZY_MCP_LOGS_PATH        log directory (alias for LAZY_MCP_LOG_DIR; ~ is expanded)
 //	LAZY_MCP_LOG_MAX_SIZE_MB  per-file size in MB before rotation (default 10)
 //	LAZY_MCP_LOG_MAX_BACKUPS  rotated files to keep (default 5)
 //	LAZY_MCP_LOG_LEVEL        debug|info|warn|error (default info)
 func LoadLogConfig() (LogConfig, error) {
 	cfg := DefaultLogConfig()
-	if v := os.Getenv("LAZY_MCP_LOG_DIR"); v != "" {
+	if v := os.Getenv("LAZY_MCP_LOGS_PATH"); v != "" {
+		cfg.Dir = expandHome(v)
+	} else if v := os.Getenv("LAZY_MCP_LOG_DIR"); v != "" {
 		cfg.Dir = v
 	}
 	if v := os.Getenv("LAZY_MCP_LOG_MAX_SIZE_MB"); v != "" {
@@ -86,15 +89,13 @@ func parseLevel(s string) (slog.Level, error) {
 	return 0, fmt.Errorf("LAZY_MCP_LOG_LEVEL: invalid level %q (want debug|info|warn|error)", s)
 }
 
-// resolveLogDir returns the default log directory: <lazy-mcp>/logs when the
-// executable lives in the source directory (the run.sh build layout), and
-// ./logs otherwise (e.g. `go run`). LAZY_MCP_LOG_DIR overrides it.
+// resolveLogDir returns the default log directory: <lazy-mcp>/logs, relative
+// to the directory containing the executable, so logs are written next to the
+// application itself regardless of the current working directory.
+// LAZY_MCP_LOG_DIR overrides it.
 func resolveLogDir() string {
 	if exe, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exe)
-		if _, err := os.Stat(filepath.Join(exeDir, "main.go")); err == nil {
-			return filepath.Join(exeDir, "logs")
-		}
+		return filepath.Join(filepath.Dir(exe), "logs")
 	}
 	return "logs"
 }
