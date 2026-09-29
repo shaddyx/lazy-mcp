@@ -17,6 +17,9 @@ type Proxy struct {
 	cache  *ServerCache
 	root   *Category
 	logger *slog.Logger // nil = discard
+	// showServers lists all server paths in the get_tools_in_category
+	// description at registration time (config: showServersOnStartup).
+	showServers bool
 }
 
 // NewProxy returns a Proxy backed by the given cache and category root.

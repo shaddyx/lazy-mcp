@@ -31,11 +31,12 @@ func main() {
 	}
 	defer closeLog()
 
-	root, err := LoadConfig()
+	cfg, err := LoadConfig()
 	if err != nil {
 		logger.Error("config load failed", "error", err)
 		log.Fatalf("lazy-mcp: config: %v", err)
 	}
+	root := cfg.Root
 
 	logger.Info("lazy-mcp starting",
 		"log_dir", logCfg.Dir,
@@ -46,7 +47,7 @@ func main() {
 
 	cache := NewServerCache()
 	cache.SetLogger(logger)
-	proxy := &Proxy{cache: cache, root: root, logger: logger}
+	proxy := &Proxy{cache: cache, root: root, logger: logger, showServers: cfg.ShowServersOnStartup}
 	defer proxy.cache.Close()
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "lazy-mcp", Version: "0.1.0"}, nil)

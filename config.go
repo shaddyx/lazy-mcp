@@ -145,15 +145,26 @@ func (c *Category) validate(path string) error {
 	return nil
 }
 
-// config is the new-format root of the configuration file: the global timeout
-// and the category tree ("tools") as separate top-level keys. The legacy
-// format has the categories at the top level with no "tools" wrapper.
+// config is the root of the configuration file: the global timeout and the
+// category tree ("tools") as separate top-level keys.
 type config struct {
 	// Timeout is the global default timeout for all downstream tool calls, as
 	// a Go duration string. "0s" disables timeouts globally.
 	Timeout string `json:"timeout,omitempty"`
+	// ShowServersOnStartup, when true, lists all configured server paths in
+	// the get_tools_in_category tool description at startup.
+	ShowServersOnStartup bool `json:"showServersOnStartup,omitempty"`
 	// Tools is the category tree.
 	Tools *Category `json:"tools,omitempty"`
+}
+
+// Config is the loaded configuration: the category tree root plus the
+// global settings that live outside the tree.
+type Config struct {
+	// Root is the category tree root.
+	Root *Category
+	// ShowServersOnStartup mirrors the global config key of the same name.
+	ShowServersOnStartup bool
 }
 
 // DefaultToolTimeout is the timeout applied to a tool call when no timeout is
@@ -185,7 +196,7 @@ func expandHome(path string) string {
 // LoadConfig reads the configuration from the path given by the
 // LAZY_MCP_SERVER_CONFIG environment variable, or, if unset, from
 // "lazy_mcp_server_config.json" in the current working directory.
-func LoadConfig() (*Category, error) {
+func LoadConfig() (*Config, error) {
 	path := os.Getenv("LAZY_MCP_SERVER_CONFIG")
 	if path == "" {
 		path = "lazy_mcp_server_config.json"
@@ -208,20 +219,15 @@ func LoadConfig() (*Category, error) {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
 
-	// New format: {"timeout": ..., "tools": {...}}.
+	// New format: {"timeout": ..., "showServersOnStartup": ..., "tools": {...}}.
 	var cfg config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	root := cfg.Tools
+	showServers := cfg.ShowServersOnStartup
 	if root == nil {
-		// Legacy format: the whole document is the category tree. (A top-level
-		// category literally named "tools" would be mistaken for the new
-		// format; the shipped configs do not use such a name.)
-		root = &Category{}
-		if err := json.Unmarshal(data, root); err != nil {
-			return nil, fmt.Errorf("parse config %s: %w", path, err)
-		}
+		return nil, fmt.Errorf("parse config %s: missing \"tools\" category tree (legacy top-level format is no longer supported)", path)
 	} else if cfg.Timeout != "" {
 		// Promote the global timeout onto the root category, where the
 		// timeout resolution walk finds it.
@@ -230,5 +236,5 @@ func LoadConfig() (*Category, error) {
 	if err := root.validate(""); err != nil {
 		return nil, err
 	}
-	return root, nil
+	return &Config{Root: root, ShowServersOnStartup: showServers}, nil
 }

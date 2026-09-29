@@ -17,7 +17,7 @@ under them. It exposes three tools:
 
 | Tool | Description |
 |------|-------------|
-| `get_tools_in_category` | List the subcategories or tools in a category path. Empty path returns top-level categories. A category containing servers returns their tools (lazily loaded). |
+| `get_tools_in_category` | List the subcategories or tools in a category path. Empty path returns top-level categories. A category containing servers returns their tools (lazily loaded). With `showServersOnStartup`, its description also lists all server paths. |
 | `execute_tool` | Execute a tool on a downstream MCP server. The server is lazily loaded and cached on first use. The downstream result (content, errors, structured content) is returned as-is. |
 | `describe_tool` | Return the full metadata of a tool on a downstream server, including its input schema. The server is lazily loaded and cached on first use. |
 
@@ -62,13 +62,15 @@ The server reads its configuration from the path given by the
 `lazy_mcp_server_config.json` in the current working directory (falling back to
 the executable's directory).
 
-The config is a JSON document with a global `timeout` and a `tools` category
-tree. A legacy format (categories at the top level, no `tools` wrapper) is also
-accepted.
+The config is a JSON document with a global `timeout`, an optional
+`showServersOnStartup` flag, and a `tools` category tree. Only this format is
+supported: the `tools` wrapper is required, and a config that places the
+category tree at the top level fails to load.
 
 ```json
 {
   "timeout": "60s",
+  "showServersOnStartup": true,
   "tools": {
     "coding_tools": {
       "description": "Development tools for coding, debugging, and analyzing code.",
@@ -135,6 +137,25 @@ The timeout applied to a tool call is resolved in priority order:
 
 A configured value of `"0s"` at any level disables the timeout for that scope
 (the call is left unbounded).
+
+### Showing servers at startup
+
+With `"showServersOnStartup": true`, the
+`get_tools_in_category` tool description ends with the sorted list of all
+configured server paths, so a client knows the server map without any
+discovery round-trips:
+
+```
+List the subcategories or tools in the given category path. ...
+
+Known MCP server paths:
+- coding_tools.serena
+- web_tools.browsers.chrome
+- web_tools.github
+```
+
+The list comes straight from the config (no downstream connections at
+startup) and is fixed for the process lifetime.
 
 ### Logging
 

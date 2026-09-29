@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // FindCategory walks the category tree from root along the given dot-delimited
 // path. An empty path returns the root. It returns nil if any segment is not a
@@ -45,6 +48,28 @@ func (c *Category) linkParents() {
 		child.parent = c
 		child.linkParents()
 	}
+}
+
+// ServerPaths returns the full dot-delimited path of every downstream server
+// in the subtree rooted at c, sorted for deterministic output. The root
+// category itself contributes servers named without a category prefix.
+func (c *Category) ServerPaths() []string {
+	var out []string
+	var walk func(cat *Category, prefix string)
+	walk = func(cat *Category, prefix string) {
+		if cat == nil {
+			return
+		}
+		for name := range cat.MCP {
+			out = append(out, serverPathFor(prefix, name))
+		}
+		for name, child := range cat.Children {
+			walk(child, serverPathFor(prefix, name))
+		}
+	}
+	walk(c, "")
+	sort.Strings(out)
+	return out
 }
 
 // SplitPath splits a full tool path "a.b.tool" into the category path "a.b"

@@ -104,3 +104,23 @@ func TestServerPathFor(t *testing.T) {
 		t.Errorf("serverPathFor(coding, serena) = %q", got)
 	}
 }
+
+func TestServerPaths(t *testing.T) {
+	root := buildTestTree()
+	got := root.ServerPaths()
+	want := []string{"coding.serena", "web.browsers.chrome", "web.github"}
+	if len(got) != len(want) {
+		t.Fatalf("ServerPaths = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("ServerPaths[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestServerPaths_Empty(t *testing.T) {
+	if got := (&Category{}).ServerPaths(); len(got) != 0 {
+		t.Errorf("empty tree: ServerPaths = %v, want empty", got)
+	}
+}

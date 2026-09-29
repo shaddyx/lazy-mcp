@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -394,4 +395,72 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+// listExposedDescriptions connects a client and returns the exposed tool
+// descriptions keyed by tool name.
+func listExposedDescriptions(t *testing.T, ctx context.Context, proxy *Proxy) map[string]string {
+	t.Helper()
+	server := mcp.NewServer(&mcp.Implementation{Name: "lazy-mcp-test", Version: "0.1.0"}, nil)
+	registerHandlers(server, proxy)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server connect: %v", err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.1.0"}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		_ = serverSession.Close()
+		t.Fatalf("client connect: %v", err)
+	}
+	defer func() {
+		_ = clientSession.Close()
+		_ = serverSession.Close()
+	}()
+	res, err := clientSession.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	out := map[string]string{}
+	for _, tool := range res.Tools {
+		out[tool.Name] = tool.Description
+	}
+	return out
+}
+
+func TestHandlers_GetToolsInCategory_DescriptionServers(t *testing.T) {
+	ctx := context.Background()
+	factory := func(_ *ServerDef, _ string) (mcp.Transport, error) {
+		return nil, errors.New("downstream must not be contacted")
+	}
+
+	t.Run("flag on lists server paths", func(t *testing.T) {
+		proxy := testProxy(buildTestTree(), factory)
+		proxy.showServers = true
+		descs := listExposedDescriptions(t, ctx, proxy)
+		desc := descs["get_tools_in_category"]
+		for _, want := range []string{
+			"Known MCP server paths:",
+			"- coding.serena",
+			"- web.browsers.chrome",
+			"- web.github",
+		} {
+			if !contains(desc, want) {
+				t.Errorf("description missing %q: %q", want, desc)
+			}
+		}
+	})
+
+	t.Run("flag off keeps base description", func(t *testing.T) {
+		proxy := testProxy(buildTestTree(), factory)
+		descs := listExposedDescriptions(t, ctx, proxy)
+		desc := descs["get_tools_in_category"]
+		if !contains(desc, getToolsDescription) {
+			t.Errorf("description missing base text: %q", desc)
+		}
+		if contains(desc, "Known MCP server paths") {
+			t.Errorf("description unexpectedly lists servers: %q", desc)
+		}
+	})
 }

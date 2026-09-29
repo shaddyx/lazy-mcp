@@ -28,10 +28,34 @@ type getToolsInCategoryOutput struct {
 	Tools      map[string]string `json:"tools,omitempty"      jsonschema:"tools in the category, name to description"`
 }
 
+// getToolsDescription is the base description of the get_tools_in_category
+// tool.
+const getToolsDescription = "List the subcategories or tools in the given category path. Empty path returns top-level categories. A category containing servers returns their tools (lazily loaded)."
+
+// descriptionWithServers appends the sorted list of configured server paths
+// to desc. It returns desc unchanged when the list is empty.
+func descriptionWithServers(desc string, serverPaths []string) string {
+	if len(serverPaths) == 0 {
+		return desc
+	}
+	var b strings.Builder
+	b.WriteString(desc)
+	b.WriteString("\n\nKnown MCP server paths:")
+	for _, sp := range serverPaths {
+		b.WriteString("\n- ")
+		b.WriteString(sp)
+	}
+	return b.String()
+}
+
 func registerGetToolsInCategory(server *mcp.Server, proxy *Proxy) {
+	desc := getToolsDescription
+	if proxy.showServers {
+		desc = descriptionWithServers(desc, proxy.root.ServerPaths())
+	}
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_tools_in_category",
-		Description: "List the subcategories or tools in the given category path. Empty path returns top-level categories. A category containing servers returns their tools (lazily loaded).",
+		Description: desc,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in getToolsInCategoryInput) (*mcp.CallToolResult, getToolsInCategoryOutput, error) {
 		start := time.Now()
 		cat, containingPath, isServerPath := resolveForListing(proxy.root, in.CategoryPath)

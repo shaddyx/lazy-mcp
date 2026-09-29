@@ -20,10 +20,11 @@ func writeTempConfig(t *testing.T, content string) string {
 func TestLoadConfig_ExampleFile(t *testing.T) {
 	// Use the checked-in example config in the package directory.
 	t.Setenv("LAZY_MCP_SERVER_CONFIG", "lazy_mcp_server_config.json")
-	root, err := LoadConfig()
+	loaded, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
+	root := loaded.Root
 
 	// Top-level categories.
 	if len(root.Children) != 2 {
@@ -86,14 +87,16 @@ func TestLoadConfig_ExampleFile(t *testing.T) {
 
 func TestLoadConfig_NestedCategoryParsing(t *testing.T) {
 	const cfg = `{
-		"a": {
-			"description": "top",
-			"b": {
-				"description": "mid",
-				"c": {
-					"description": "leaf",
-					"mcpServers": {
-						"s1": {"command": "echo"}
+		"tools": {
+			"a": {
+				"description": "top",
+				"b": {
+					"description": "mid",
+					"c": {
+						"description": "leaf",
+						"mcpServers": {
+							"s1": {"command": "echo"}
+						}
 					}
 				}
 			}
@@ -101,10 +104,11 @@ func TestLoadConfig_NestedCategoryParsing(t *testing.T) {
 	}`
 	path := writeTempConfig(t, cfg)
 	t.Setenv("LAZY_MCP_SERVER_CONFIG", path)
-	root, err := LoadConfig()
+	loaded, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
+	root := loaded.Root
 	// Walk a.b.c.s1.
 	a := root.Children["a"]
 	if a == nil || a.Description != "top" {
@@ -152,15 +156,16 @@ func TestLoadConfig_TildeExpansion(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	path := filepath.Join(dir, "lazy_mcp_server_config.json")
-	if err := os.WriteFile(path, []byte(`{"a": {"mcpServers": {"s1": {"command": "echo"}}}}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"tools": {"a": {"mcpServers": {"s1": {"command": "echo"}}}}}`), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
 	t.Setenv("LAZY_MCP_SERVER_CONFIG", "~/cfg/lazy_mcp_server_config.json")
-	root, err := LoadConfig()
+	loaded, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig with ~ path: %v", err)
 	}
+	root := loaded.Root
 	if root.Children["a"] == nil {
 		t.Fatal("expected category a to be loaded from ~ path")
 	}
@@ -168,9 +173,11 @@ func TestLoadConfig_TildeExpansion(t *testing.T) {
 
 func TestLoadConfig_ValidationErrors(t *testing.T) {
 	const cfg = `{
-		"bad": {
-			"mcpServers": {
-				"s": {"command": "x", "server_url": "http://y"}
+		"tools": {
+			"bad": {
+				"mcpServers": {
+					"s": {"command": "x", "server_url": "http://y"}
+				}
 			}
 		}
 	}`
@@ -200,10 +207,11 @@ func TestLoadConfig_NewFormat(t *testing.T) {
 	}`
 	path := writeTempConfig(t, cfg)
 	t.Setenv("LAZY_MCP_SERVER_CONFIG", path)
-	root, err := LoadConfig()
+	loaded, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
+	root := loaded.Root
 	// The global timeout is promoted onto the root category.
 	if root.Timeout != "30s" {
 		t.Errorf("root.Timeout = %q, want 30s (global promoted)", root.Timeout)
@@ -231,7 +239,9 @@ func TestLoadConfig_NewFormat(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_LegacyFormat(t *testing.T) {
+func TestLoadConfig_LegacyFormatRejected(t *testing.T) {
+	// Legacy format (categories at top level, no "tools" wrapper) must fail
+	// to load: only the new format is supported.
 	const cfg = `{
 		"a": {
 			"description": "legacy",
@@ -240,19 +250,8 @@ func TestLoadConfig_LegacyFormat(t *testing.T) {
 	}`
 	path := writeTempConfig(t, cfg)
 	t.Setenv("LAZY_MCP_SERVER_CONFIG", path)
-	root, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
-	}
-	a := root.Children["a"]
-	if a == nil || a.Description != "legacy" {
-		t.Fatalf("a: %+v", a)
-	}
-	if len(a.MCP) != 1 || a.MCP["s1"] == nil {
-		t.Fatalf("a.mcpServers: %+v", a.MCP)
-	}
-	if root.Timeout != "" {
-		t.Errorf("root.Timeout = %q, want empty for legacy format", root.Timeout)
+	if _, err := LoadConfig(); err == nil {
+		t.Fatal("expected load error for legacy top-level format, got nil")
 	}
 }
 
@@ -286,5 +285,40 @@ func TestLoadConfig_InvalidTimeout(t *testing.T) {
 				t.Fatal("expected error for invalid duration, got nil")
 			}
 		})
+	}
+}
+
+func TestLoadConfig_ShowServersOnStartup(t *testing.T) {
+	const cfg = `{
+		"showServersOnStartup": true,
+		"tools": {
+			"a": {"mcpServers": {"s1": {"command": "echo"}}}
+		}
+	}`
+	path := writeTempConfig(t, cfg)
+	t.Setenv("LAZY_MCP_SERVER_CONFIG", path)
+	loaded, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if !loaded.ShowServersOnStartup {
+		t.Error("ShowServersOnStartup = false, want true")
+	}
+}
+
+func TestLoadConfig_ShowServersOnStartup_Default(t *testing.T) {
+	const cfg = `{
+		"tools": {
+			"a": {"mcpServers": {"s1": {"command": "echo"}}}
+		}
+	}`
+	path := writeTempConfig(t, cfg)
+	t.Setenv("LAZY_MCP_SERVER_CONFIG", path)
+	loaded, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if loaded.ShowServersOnStartup {
+		t.Error("ShowServersOnStartup = true, want false by default")
 	}
 }
